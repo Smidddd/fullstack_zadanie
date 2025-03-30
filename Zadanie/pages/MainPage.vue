@@ -3,8 +3,8 @@
         <Menubar v-if="loggedIn" :model="logout" />
         <Menubar v-if="!loggedIn" :model="back" />
     </div>
-    <DataTable id="tenders" :value="tenders" v-model:selection="currentTenderId"
-        v-on:row-click="detailVisible = true; loadCurrentTender()">
+    <DataTable id="tenders" :value="tenders" v-model:selection="currentTenderId" dataKey="id"
+        v-on:row-click="handleRowClick()">
         <Column field="nazov" header="Názov"></Column>
         <Column field="datum_trvania_od" header="Dátum trvania od"></Column>
         <Column field="datum_trvania_do" header="Dátum trvania do"></Column>
@@ -100,7 +100,7 @@ const detailVisible = ref(false)
 let tenders: Ref<Tender[]> = ref([])
 await loadTenders()
 let loggedIn = false
-let currentTenderId: number | null = null
+let currentTenderId: Ref<number | null> = ref(null)
 
 let currentTender: Ref<Tender | null> = ref(null)
 
@@ -202,6 +202,11 @@ try {
     loggedIn = false
 }
 
+async function handleRowClick() {
+    await loadCurrentTender();
+    detailVisible.value = true;
+}
+
 async function loadTenders() {
     try {
         const data = await $directus.request<Tender[]>(
@@ -227,7 +232,7 @@ async function createForm() {
 
     toast.add({ severity: 'success', summary: 'Success', detail: 'Form created', life: 3000 })
     addVisible.value = false
-    currentTenderId = null
+    currentTenderId.value = null
 
     await loadTenders()
 }
@@ -244,19 +249,20 @@ async function editTender() {
 
     toast.add({ severity: 'success', summary: 'Success', detail: 'Tender updated', life: 3000 })
     editVisible.value = false
-    currentTenderId = null
+    currentTenderId.value = null
     currentTender.value = null
 
     await loadTenders()
 }
 
 async function loadCurrentTender() {
+    console.log(currentTenderId.value)
     currentTender.value = await $directus.request<Tender>(
         $readItems('tenders', {
             fields: ['*'],
             filter: {
                 id: {
-                    _eq: currentTenderId,
+                    _eq: currentTenderId.value,
                 },
             },
         })
@@ -267,6 +273,7 @@ async function loadCurrentTender() {
     tender.value.maxCas = currentTender.value.maxCas
     tender.value.maxCena = currentTender.value.maxCas
     tender.value.stav = currentTender.value.stav
+    console.log(currentTender.value.nazov)
 
 }
 
@@ -274,7 +281,7 @@ async function deleteTender() {
     await $directus.request($deleteItem('tenders', String(currentTenderId)))
 
     toast.add({ severity: 'success', summary: 'Success', detail: 'Tender deleted', life: 3000 })
-    currentTenderId = null
+    currentTenderId.value = null
     currentTender.value = null
 
     await loadTenders()

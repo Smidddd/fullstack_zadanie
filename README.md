@@ -1,5 +1,5 @@
 # fullstack_zadanie
 
-**docker compose up** - spustí directus + cache + db (potrebne mat nainstalovany **docker**)
+**npm install** - v projektovom priečinku (Zadanie), nainštaluje dependencie
 
-Kód frontendu je v priečinku Zadanie.
+**docker compose up** - spustí directus + cache + db (potrebné mať nainštalovaný **docker**)

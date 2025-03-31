@@ -25,5 +25,6 @@ export default defineNuxtConfig({
   },
   css: [
     'primeicons/primeicons.css',
-  ]
+  ],
+  ssr: false,
 })

@@ -114,214 +114,204 @@
 </template>
 
 
-<script setup lang="ts">
+<script lang="ts">
+
 import type { Tender } from '../types/Tender'
 import type { Form } from '../types/Form'
+import { createItem, deleteItem, readItems, updateItem } from '@directus/sdk'
 
-const { $directus, $readItems, $createItem, $updateItem, $deleteItem } = useNuxtApp()
-const toast = useToast()
-const confirm = useConfirm()
-const editVisible = ref(false)
-const addVisible = ref(false)
-const detailVisible = ref(false)
+export default defineNuxtComponent({
+    setup() {
+        const loggedIn = ref(false)
+        const directus = useNuxtApp().$directus
+        return {
+            directus,
+            toast: useToast(),
+            confirm: useConfirm(),
+            loggedIn,
+            editVisible: ref(false),
+            addVisible: ref(false),
+            detailVisible: ref(false),
+            tenders: ref<Tender[]>([]),
+            forms: ref<Form[]>([]),
 
-let tenders: Ref<Tender[]> = ref([])
-let forms: Ref<Form[]> = ref([])
-await loadTenders()
-let loggedIn = false
-let currentTenderId: Ref<number | null> = ref(null)
+            currentTenderId: ref<number | null>(null),
+            currentTender: ref<Tender | null>(null),
+            form: ref({
+                nazovDod: '',
+                ico: '',
+                casVypr: '',
+                cenaVypr: '',
+                tenderId: ''
+            }),
+            tender: ref({
+                nazov: '',
+                datOd: new Date(),
+                datDo: new Date(),
+                maxCas: '',
+                maxCena: '',
+                stav: ''
+            }),
+            logout: ref([
+                {
+                    label: 'Log out',
+                    icon: 'pi pi-fw pi-power-off',
+                    command: () => {
+                        directus.logout()
+                        loggedIn.value = false
+                        navigateTo('/')
+                    },
+                }
+            ]),
+            back: ref([
+                {
+                    label: 'Leave',
+                    icon: 'pi pi-fw pi-arrow-left',
+                    command: () => {
+                        navigateTo('/')
+                    },
+                }
+            ]),
 
-let currentTender: Ref<Tender | null> = ref(null)
-
-const form = ref({
-    nazovDod: '',
-    ico: '',
-    casVypr: '',
-    cenaVypr: '',
-    tenderId: '',
-})
-
-let tender = ref({
-    nazov: '',
-    datOd: new Date(),
-    datDo: new Date(),
-    maxCas: '',
-    maxCena: '',
-    stav: '',
-})
-
-
-
-const logout = ref([
-    {
-        label: 'Log out',
-        icon: 'pi pi-fw pi-power-off',
-        command: () => {
-            $directus.logout()
-            loggedIn = false
-            navigateTo('/')
-        },
-    }
-])
-
-const back = ref([
-    {
-        label: 'Leave',
-        icon: 'pi pi-fw pi-arrow-left',
-        command: () => {
-            navigateTo('/')
-        },
-    }
-])
-
-const confirmDelete = () => {
-    confirm.require({
-        message: 'Are you sure you want to delete this tender?',
-        header: 'Delete tender ?',
-        icon: 'pi pi-exclamation-triangle',
-        rejectProps: {
-            label: 'Cancel',
-            severity: 'secondary',
-            outlined: true
-        },
-        acceptProps: {
-            label: 'Yes',
-            severity: 'danger'
-        },
-        accept: () => {
-            deleteTender()
-            toast.add({ severity: 'success', summary: 'Success', detail: 'Tender deleted', life: 3000 })
-        },
-        reject: () => {
-            toast.add({ severity: 'info', summary: 'Info', detail: 'Deletion cancelled', life: 3000 })
         }
-    })
-
-}
-
-
-try {
-    const token = await $directus.getToken()
-    if (token != null) {
-        loggedIn = true
-    } else {
-        loggedIn = false
-    }
-
-} catch (e) {
-    loggedIn = false
-}
-
-async function handleRowClick(rowData: Tender) {
-    currentTenderId.value = rowData.id;
-    await loadCurrentTender();
-    await loadForms();
-    console.log(currentTender)
-    detailVisible.value = true;
-}
-
-async function loadForms() {
-    const data = await $directus.request<Form[]>(
-        $readItems('forms', {
-            fields: ['*'],
-            filter: {
-                tender: {
-                    _eq: currentTenderId.value,
+    },
+    mounted() {
+        this.checkLogin()
+        this.loadTenders()
+    },
+    methods: {
+        async checkLogin() {
+            const token = await this.directus.getToken()
+            if (token) {
+                this.loggedIn = true
+            } else {
+                this.loggedIn = false
+            }
+        },
+        async confirmDelete() {
+            this.confirm.require({
+                message: 'Are you sure you want to delete this tender?',
+                header: 'Delete tender ?',
+                icon: 'pi pi-exclamation-triangle',
+                rejectProps: {
+                    label: 'Cancel',
+                    severity: 'secondary',
+                    outlined: true
                 },
-            },
-        })
-    )
-    forms.value = data
-}
-
-async function loadTenders() {
-    try {
-        const data = await $directus.request<Tender[]>(
-            $readItems('tenders', {
-                fields: ['*'],
+                acceptProps: {
+                    label: 'Yes',
+                    severity: 'danger'
+                },
+                accept: () => {
+                    this.deleteTender()
+                    this.toast.add({ severity: 'success', summary: 'Success', detail: 'Tender deleted', life: 3000 })
+                },
+                reject: () => {
+                    this.toast.add({ severity: 'info', summary: 'Info', detail: 'Deletion cancelled', life: 3000 })
+                }
             })
-        )
-        tenders.value = data
-    } catch (e) {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to load tenders', life: 3000 })
-        return []
+        },
+        async handleRowClick(rowData: Tender) {
+            this.currentTenderId = rowData.id
+            await this.loadCurrentTender();
+            await this.loadForms();
+            this.detailVisible = true;
+        },
+        async loadForms() {
+            const data = await this.directus.request<Form[]>(
+                readItems("forms", {
+                    fields: ['*'],
+                    filter: {
+                        tender: {
+                            _eq: this.currentTenderId,
+                        },
+                    },
+                })
+            )
+            this.forms = data
+        },
+        async loadTenders() {
+            try {
+                const data = await this.directus.request<Tender[]>(
+                    readItems('tenders', {
+                        fields: ['*'],
+                    })
+                )
+                this.tenders = data
+            } catch (e) {
+                this.toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to load tenders', life: 3000 })
+                return []
+            }
+        },
+        async createForm() {
+            await this.directus.request(createItem('forms', {
+                nazov_dodavatela: this.form.nazovDod,
+                ico: this.form.ico,
+                cas_vypracovania: this.form.casVypr,
+                cena_vypracovania: this.form.cenaVypr,
+                tender: this.currentTenderId
+            }))
+
+            this.toast.add({ severity: 'success', summary: 'Success', detail: 'Form created', life: 3000 })
+            this.addVisible = false
+            this.currentTenderId = null
+
+            await this.loadTenders()
+        },
+        async editTender() {
+            await this.directus.request(updateItem('tenders', String(this.currentTenderId), {
+                nazov: this.tender.nazov,
+                datum_trvania_od: this.tender.datOd,
+                datum_trvania_do: this.tender.datDo,
+                max_cas_vypracovania: this.tender.maxCas,
+                max_cena: this.tender.maxCena,
+                stav: this.tender.stav
+            }))
+
+            this.toast.add({ severity: 'success', summary: 'Success', detail: 'Tender updated', life: 3000 })
+            this.editVisible = false
+            this.currentTenderId = null
+            this.currentTender = null
+
+            await this.loadTenders()
+        },
+        async loadCurrentTender() {
+            const result = await this.directus.request<Tender[]>(
+                readItems("tenders", {
+                    fields: ['*'],
+                    filter: {
+                        id: {
+                            _eq: this.currentTenderId,
+                        },
+                    },
+                })
+            )
+            this.currentTender = {
+                id: result[0].id,
+                nazov: result[0].nazov,
+                datum_trvania_od: result[0].datum_trvania_od,
+                datum_trvania_do: result[0].datum_trvania_do,
+                max_cas_vypracovania: result[0].max_cas_vypracovania,
+                max_cena: result[0].max_cena,
+                stav: result[0].stav,
+            }
+
+            this.tender.nazov = this.currentTender.nazov
+            this.tender.datDo = new Date(this.currentTender.datum_trvania_do)
+            this.tender.datOd = new Date(this.currentTender.datum_trvania_od)
+            this.tender.maxCas = this.currentTender.max_cas_vypracovania
+            this.tender.maxCena = this.currentTender.max_cena
+            this.tender.stav = this.currentTender.stav
+        },
+        async deleteTender() {
+            await this.directus.request(deleteItem('tenders', String(this.currentTenderId)))
+
+            this.toast.add({ severity: 'success', summary: 'Success', detail: 'Tender deleted', life: 3000 })
+            this.currentTenderId = null
+            this.currentTender = null
+
+            await this.loadTenders()
+        }
     }
-}
-
-async function createForm() {
-    await $directus.request($createItem('forms', {
-        nazov_dodavatela: form.value.nazovDod,
-        ico: form.value.ico,
-        cas_vypracovania: form.value.casVypr,
-        cena_vypracovania: form.value.cenaVypr,
-        tender: currentTenderId
-    }))
-
-    toast.add({ severity: 'success', summary: 'Success', detail: 'Form created', life: 3000 })
-    addVisible.value = false
-    currentTenderId.value = null
-
-    await loadTenders()
-}
-
-async function editTender() {
-    await $directus.request($updateItem('tenders', String(currentTenderId), {
-        nazov: tender.value.nazov,
-        datum_trvania_od: tender.value.datOd,
-        datum_trvania_do: tender.value.datDo,
-        max_cas_vypracovania: tender.value.maxCas,
-        max_cena: tender.value.maxCena,
-        stav: tender.value.stav
-    }))
-
-    toast.add({ severity: 'success', summary: 'Success', detail: 'Tender updated', life: 3000 })
-    editVisible.value = false
-    currentTenderId.value = null
-    currentTender.value = null
-
-    await loadTenders()
-}
-
-async function loadCurrentTender() {
-    const result = await $directus.request<Tender[]>(
-        $readItems('tenders', {
-            fields: ['*'],
-            filter: {
-                id: {
-                    _eq: currentTenderId.value,
-                },
-            },
-        })
-    )
-    currentTender.value = {
-        id: result[0].id,
-        nazov: result[0].nazov,
-        datum_trvania_od: result[0].datum_trvania_od,
-        datum_trvania_do: result[0].datum_trvania_do,
-        max_cas_vypracovania: result[0].max_cas_vypracovania,
-        max_cena: result[0].max_cena,
-        stav: result[0].stav,
-    }
-
-    console.log(result[0])
-
-    tender.value.nazov = currentTender.value.nazov
-    tender.value.datDo = new Date(currentTender.value.datum_trvania_do)
-    tender.value.datOd = new Date(currentTender.value.datum_trvania_od)
-    tender.value.maxCas = currentTender.value.max_cas_vypracovania
-    tender.value.maxCena = currentTender.value.max_cena
-    tender.value.stav = currentTender.value.stav
-}
-
-async function deleteTender() {
-    await $directus.request($deleteItem('tenders', String(currentTenderId)))
-
-    toast.add({ severity: 'success', summary: 'Success', detail: 'Tender deleted', life: 3000 })
-    currentTenderId.value = null
-    currentTender.value = null
-
-    await loadTenders()
-}
-
-
+})
 </script>

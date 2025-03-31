@@ -4,7 +4,7 @@
         <Menubar v-if="!loggedIn" :model="back" />
     </div>
     <DataTable id="tenders" :value="tenders" v-model:selection="currentTenderId" dataKey="id"
-        v-on:row-click="handleRowClick()">
+        v-on:row-click="(event) => handleRowClick(event.data)">
         <Column field="nazov" header="Názov"></Column>
         <Column field="datum_trvania_od" header="Dátum trvania od"></Column>
         <Column field="datum_trvania_do" header="Dátum trvania do"></Column>
@@ -82,46 +82,56 @@
         </div>
     </Dialog>
     <Dialog v-model:visible="detailVisible" modal header="Tender details" :style="{ width: '50vw' }">
-        <label for="nazov">Názov dodávateľa</label>
-        <p>{{ currentTender?.nazov }}</p>
+        <div class="flex items-center gap-4 mb-4">
+            <label for="nazov">Názov dodávateľa: </label>
+            <p>{{ currentTender!.nazov }}</p>
+        </div>
+        <div class="flex items-center gap-4 mb-4">
+            <label for="nazov">Dátum trvania od: </label>
+            <p>{{ currentTender!.datum_trvania_od }}</p>
+        </div>
+        <div class="flex items-center gap-4 mb-4">
+            <label for="nazov">Dátum trvania do: </label>
+            <p>{{ currentTender!.datum_trvania_do }}</p>
+        </div>
+        <div class="flex items-center gap-4 mb-4">
+            <label for="nazov">Maximálny čas vypracovania (dni): </label>
+            <p>{{ currentTender!.max_cas_vypracovania }}</p>
+        </div>
+        <div class="flex items-center gap-4 mb-4">
+            <label for="nazov">Maximálna cena: </label>
+            <p>{{ currentTender!.max_cena }}</p>
+        </div>
+        <label for="forms">Prihlášky: </label>
+        <DataTable id="forms" :value="forms">
+            <Column field="nazov_dodavatela" header="Názov dodávateľa"></Column>
+            <Column field="ico" header="IČO"></Column>
+            <Column field="cas_vypracovania" header="Čas vypracovania (dni)"></Column>
+            <Column field="cena_vypracovania" header="Cena vypracovania (EUR)"></Column>
+        </DataTable>
+
     </Dialog>
 </template>
 
 
 <script setup lang="ts">
+import type { Tender } from '../types/Tender'
+import type { Form } from '../types/Form'
+
 const { $directus, $readItems, $createItem, $updateItem, $deleteItem } = useNuxtApp()
 const toast = useToast()
 const confirm = useConfirm()
-
 const editVisible = ref(false)
 const addVisible = ref(false)
 const detailVisible = ref(false)
 
 let tenders: Ref<Tender[]> = ref([])
+let forms: Ref<Form[]> = ref([])
 await loadTenders()
 let loggedIn = false
 let currentTenderId: Ref<number | null> = ref(null)
 
 let currentTender: Ref<Tender | null> = ref(null)
-
-
-interface Tender {
-    id: number
-    nazov: string
-    datOd: Date
-    datDo: Date
-    maxCas: string
-    maxCena: string
-    stav: string
-}
-
-interface Form {
-    nazovDod: string
-    ico: number
-    casVypr: number
-    cenaVypr: number
-    tenderId: number
-}
 
 const form = ref({
     nazovDod: '',
@@ -202,9 +212,26 @@ try {
     loggedIn = false
 }
 
-async function handleRowClick() {
+async function handleRowClick(rowData: Tender) {
+    currentTenderId.value = rowData.id;
     await loadCurrentTender();
+    await loadForms();
+    console.log(currentTender)
     detailVisible.value = true;
+}
+
+async function loadForms() {
+    const data = await $directus.request<Form[]>(
+        $readItems('forms', {
+            fields: ['*'],
+            filter: {
+                tender: {
+                    _eq: currentTenderId.value,
+                },
+            },
+        })
+    )
+    forms.value = data
 }
 
 async function loadTenders() {
@@ -256,8 +283,7 @@ async function editTender() {
 }
 
 async function loadCurrentTender() {
-    console.log(currentTenderId.value)
-    currentTender.value = await $directus.request<Tender>(
+    const result = await $directus.request<Tender[]>(
         $readItems('tenders', {
             fields: ['*'],
             filter: {
@@ -267,14 +293,24 @@ async function loadCurrentTender() {
             },
         })
     )
-    tender.value.nazov = currentTender.value.nazov
-    tender.value.datOd = currentTender.value.datOd
-    tender.value.datDo = currentTender.value.datDo
-    tender.value.maxCas = currentTender.value.maxCas
-    tender.value.maxCena = currentTender.value.maxCas
-    tender.value.stav = currentTender.value.stav
-    console.log(currentTender.value.nazov)
+    currentTender.value = {
+        id: result[0].id,
+        nazov: result[0].nazov,
+        datum_trvania_od: result[0].datum_trvania_od,
+        datum_trvania_do: result[0].datum_trvania_do,
+        max_cas_vypracovania: result[0].max_cas_vypracovania,
+        max_cena: result[0].max_cena,
+        stav: result[0].stav,
+    }
 
+    console.log(result[0])
+
+    tender.value.nazov = currentTender.value.nazov
+    tender.value.datDo = new Date(currentTender.value.datum_trvania_do)
+    tender.value.datOd = new Date(currentTender.value.datum_trvania_od)
+    tender.value.maxCas = currentTender.value.max_cas_vypracovania
+    tender.value.maxCena = currentTender.value.max_cena
+    tender.value.stav = currentTender.value.stav
 }
 
 async function deleteTender() {
